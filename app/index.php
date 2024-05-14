@@ -1,41 +1,73 @@
 <?php
     session_start();
 
-    $todoList = array();
+    $todoList = isset($_SESSION["todoList"]) ? $_SESSION["todoList"] : [];
+    $finishedList = isset($_SESSION["finishedList"]) ? $_SESSION["finishedList"] : [];
 
-    if (isset($_SESSION["todoList"])) $todoList = $_SESSION["todoList"];
-
-    function appendData($data) {
-        $todoList = $data;
-        return $todoList;
+    function appendData($data, $list) {
+        if (!in_array($data, $list)) {
+            array_push($list, $data);
+        } else {
+            echo '<script>alert("Error: Task already exists")</script>';
+        }
+        return $list;
     }
 
-    function deleteData($toDelete, $todoList) {
-        foreach ($todoList as $index => $taskName) {
-            if ($taskName === $toDelete) {
-                unset( $todoList[$index] );
-            }
-
+    function deleteData($toDelete, $list) {
+        if (($key = array_search($toDelete, $list)) !== false) {
+            unset($list[$key]);
         }
-
-        return $todoList;
+        return $list;
     }
 
-    if($_SERVER["REQUEST_METHOD"] =="POST") {
-        if (empty( $_POST["task"] )){
-            echo '<script>alert("Error: there is no data to add in array")</script>';
-            exit;
+    function displayTasks($todoList) {
+        foreach ($todoList as $task) {
+            echo '<div class="d-flex p-2 bd-highlight w-100 justify-content-between">';
+            echo '<li class="list-group-item w-100">';
+            echo '<input type="checkbox" onclick="finishTask(this, \'' . $task . '\')"> ' . $task;
+            echo '</li>';
+            echo '<a href="index.php?delete=true&task=' . urlencode($task) . '" class="btn btn-danger">Delete</a>';
+            echo '</div>';
         }
+    }
 
-        array_push($todoList, appendData($_POST["task"]));
+    function displayFinishedTasks($finishedList) {
+        foreach ($finishedList as $task) {
+            echo '<div class="d-flex p-2 bd-highlight w-100 justify-content-between">';
+            echo '<li class="list-group-item w-100 completed">';
+            echo '<input type="checkbox" checked disabled> ' . $task;
+            echo '</li>';
+            echo '<a href="index.php?delete=true&task=' . urlencode($task) . '&finished=true" class="btn btn-danger">Delete</a>';
+            echo '</div>';
+        }
+    }
+
+    if ($_SERVER["REQUEST_METHOD"] == "POST" && !empty($_POST["task"])) {
+        $todoList = appendData($_POST["task"], $todoList);
         $_SESSION["todoList"] = $todoList;
     }
 
     if (isset($_GET['task'])) {
-        $_SESSION["todoList"] = deleteData($_GET['task'], $todoList);
+        $task = $_GET['task'];
+        if (isset($_GET['finished']) && $_GET['finished'] == 'true') {
+            $finishedList = deleteData($task, $finishedList);
+            $_SESSION["finishedList"] = $finishedList;
+        } else {
+            $todoList = deleteData($task, $todoList);
+            $_SESSION["todoList"] = $todoList;
+        }
+    }
+
+    if (isset($_GET['finish']) && $_GET['finish'] == 'true' && isset($_GET['task'])) {
+        $task = $_GET['task'];
+        $todoList = deleteData($task, $todoList);
+        $finishedList = appendData($task, $finishedList);
+        $_SESSION["todoList"] = $todoList;
+        $_SESSION["finishedList"] = $finishedList;
+        header('Location: index.php');
+        exit;
     }
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -44,6 +76,12 @@
     <title>Simple To-Do List</title>
     <!-- Bootstrap CSS -->
     <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .completed {
+            text-decoration: line-through;
+            color: grey;
+        }
+    </style>
 </head>
 <body>
     <div class="container mt-5">
@@ -62,12 +100,19 @@
 
         <div class="card mt-4">
             <div class="card-header">Tasks</div>
-            <ul class="list-group list-group-flush">
+            <ul class="list-group list-group-flush" id="task-list">
             <?php
-                foreach ($todoList as $task) {
-                    echo '<div class="d-flex p-2 bd-highlight w-100 justify-content-between"> <li class="list-group-item w-100">' . $task . ' </li><a href="index.php?delete=true&task=' . $task . '" class="btn btn-danger">Delete</a></div>';
-                }
-                ?>
+                displayTasks($todoList);
+            ?>
+            </ul>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header">Tasks Finished</div>
+            <ul class="list-group list-group-flush" id="finished-list">
+            <?php
+                displayFinishedTasks($finishedList);
+            ?>
             </ul>
         </div>
     </div>
@@ -76,5 +121,12 @@
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script>
+        function finishTask(checkbox, task) {
+            if (checkbox.checked) {
+                window.location.href = 'index.php?finish=true&task=' + encodeURIComponent(task);
+            }
+        }
+    </script>
 </body>
 </html>
